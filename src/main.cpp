@@ -13,17 +13,19 @@
 int main() {
     uint32_t pixels[WIDTH * HEIGHT];
 
-    Pomme::fill(pixels, WIDTH, HEIGHT, BACKGROUND_COLOR);
+    Pomme::fill(pixels, WIDTH, HEIGHT, WHITE_COLOR);
 
     //Pomme::draw_circle(pixels, WIDTH, HEIGHT, WIDTH/2, HEIGHT/2, 25, RED_COLOR);
     //Pomme::draw_circle(pixels, WIDTH, HEIGHT, 25, 50, 25, GREEN_COLOR);
 
     //Pomme::draw_line(pixels, WIDTH, HEIGHT, WIDTH/2, 0, WIDTH/2, HEIGHT, BLUE_COLOR);
 
-    Pomme::draw_triangle(pixels, WIDTH, HEIGHT, WIDTH/2, HEIGHT/2, 100, RED_COLOR, true);
-    Pomme::draw_circle(pixels, WIDTH, HEIGHT, WIDTH/2, HEIGHT/2, 5, GREEN_COLOR);
+    //Pomme::draw_triangle(pixels, WIDTH, HEIGHT, WIDTH/2, HEIGHT/2, 100, RED_COLOR, true);
+    //Pomme::draw_circle(pixels, WIDTH, HEIGHT, WIDTH/2, HEIGHT/2, 20, RED_COLOR);
 
-    Pomme::draw_x_axis(pixels, WIDTH, HEIGHT, 25, WHITE_COLOR);
+    Pomme::draw_ellipse(pixels, WIDTH, HEIGHT, WIDTH/2, HEIGHT/2, 50, 25, RED_COLOR);
+
+    //Pomme::draw_x_axis(pixels, WIDTH, HEIGHT, 25, WHITE_COLOR);
 
     Pomme::save_to_ppm("image.ppm", pixels, WIDTH, HEIGHT);
 

@@ -229,39 +229,20 @@ void Pomme::draw_triangle(uint32_t *pixels, size_t width, size_t height, int x0,
 }
 
 // Ellipse wikipedia : https://en.wikipedia.org/wiki/Ellipse
+// french version : https://fr.wikipedia.org/wiki/Ellipse_(math%C3%A9matiques)
 void Pomme::draw_ellipse(uint32_t *pixels, size_t width, size_t height, int cx, int cy, int rx, int ry, uint32_t color){
-    int x = 0;
-    int y = ry;
-    int rx2 = rx * rx;
-    int ry2 = ry * ry;
-    int fx2 = 4 * rx2;
-    int fy2 = 4 * ry2;
-    int s = fx2 * y;
-    int t = fy2 * x;
-
-    // First half
-    while(s >= t){
-        pixels[cx + x + (cy + y) * width] = color;
-        pixels[cx - x + (cy + y) * width] = color;
-        pixels[cx + x + (cy - y) * width] = color;
-        pixels[cx - x + (cy - y) * width] = color;
-
-        x++;
-        t += fy2;
-        s += fy2 + fx2 * x;
-    }
-
-    // Second half
-    s = ry2 * (x + 1/2) * (x + 1/2) + rx2 * (y - 1) * (y - 1) - rx2 * ry2;
-    while(y > 0){
-        pixels[cx + x + (cy + y) * width] = color;
-        pixels[cx - x + (cy + y) * width] = color;
-        pixels[cx + x + (cy - y) * width] = color;
-        pixels[cx - x + (cy - y) * width] = color;
-
-        y--;
-        s += fx2;
-        s += fx2 - fy2 * y;
+    for(int y = -ry; y <= ry; y++){
+        for(int x = -rx; x <= rx; x++){
+            int border = rx*rx*ry*ry;
+            int inside = rx*rx*y*y + ry*ry*x*x;
+            if(inside <= border){
+                int px = cx + x;
+                int py = cy + y;
+                if(0 < px && px < (int)width && 0 < py && py < (int)height){
+                    pixels[px + py * width] = color;
+                }
+            }
+        }
     }
 }
 
