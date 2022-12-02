@@ -82,7 +82,7 @@ int pom_save_to_ppm(const char *filename, const uint32_t* pixels, size_t width, 
     return 0;
 }
 
-// save the pixels to a image file (png) 
+// https://www.lemoda.net/c/write-png/
 void  pom_save_to_png( const char *filename, const uint32_t *pixels, size_t width, size_t height) {
     FILE *fp = fopen(filename, "wb");
     if (fp == NULL) {
