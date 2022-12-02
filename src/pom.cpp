@@ -1,4 +1,3 @@
-#include "pom.h"
 #include <stdio.h>
 #include <stdint.h>
 #include <errno.h>
@@ -6,15 +5,19 @@
 #include <stdlib.h>
 #include <algorithm>
 #include <cmath>
+#include <png.h>
 
-void Pom::swap(int &a, int &b)
+#define TICK_SIZE 5
+#define AXIS_MARGIN 3
+
+void pom_swap(int &a, int &b)
 {
     int tmp = a;
     a = b;
     b = tmp;
 }
 
-void Pom::rotate_point(int &x, int &y, int &x0, int &y0, float angle)
+void pom_rotate_point(int &x, int &y, int &x0, int &y0, float angle)
 {
     int x1 = x - x0;
     int y1 = y - y0;
@@ -23,7 +26,7 @@ void Pom::rotate_point(int &x, int &y, int &x0, int &y0, float angle)
 }
 
 // https://stackoverflow.com/questions/2049582/how-to-determine-if-a-point-is-in-a-2d-triangle
-bool Pom::is_in_triangle(int x, int y, int x0, int y0, int x1, int y1, int x2, int y2)
+bool pom_is_in_triangle(int x, int y, int x0, int y0, int x1, int y1, int x2, int y2)
 {
     int a = (x1 - x0) * (y - y0) - (x - x0) * (y1 - y0);
     int b = (x2 - x1) * (y - y1) - (x - x1) * (y2 - y1);
@@ -33,7 +36,7 @@ bool Pom::is_in_triangle(int x, int y, int x0, int y0, int x1, int y1, int x2, i
 
 // https://math.stackexchange.com/a/76463
 // https://stackoverflow.com/a/16814494/13529134
-bool Pom::is_in_ellipse(int x, int y, int x0, int y0, int a, int b, float angle)
+bool pom_is_in_ellipse(int x, int y, int x0, int y0, int a, int b, float angle)
 {
     // Check if a point is in an ellipse with center (x0, y0), semi-major axis a, semi-minor axis b, and angle of rotation angle
     // https://en.wikipedia.org/wiki/Ellipse#Equation_of_a_general_ellipse
@@ -47,7 +50,7 @@ bool Pom::is_in_ellipse(int x, int y, int x0, int y0, int a, int b, float angle)
 }
 
 // Wikipedia: https://en.wikipedia.org/wiki/Netpbm_format
-int Pom::save_to_ppm(const char *filename, const uint32_t* pixels, size_t width, size_t height){
+int pom_save_to_ppm(const char *filename, const uint32_t* pixels, size_t width, size_t height){
 
     FILE* f = fopen(filename, "wb");
     if(f == NULL){
@@ -79,13 +82,67 @@ int Pom::save_to_ppm(const char *filename, const uint32_t* pixels, size_t width,
     return 0;
 }
 
-void Pom::fill(uint32_t* pixels, size_t width, size_t height, uint32_t color){
+// save the pixels to a image file (png) 
+void  pom_save_to_png( const char *filename, const uint32_t *pixels, size_t width, size_t height) {
+    FILE *fp = fopen(filename, "wb");
+    if (fp == NULL) {
+        fprintf(stderr, "Error: could not open file %s for writing", filename);
+        return ;
+    }
+
+    png_structp png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
+    if (png_ptr == NULL) {
+        fclose(fp);
+        fprintf(stderr, "Error: could not create png write struct");
+        return ;
+    }
+
+    png_infop info_ptr = png_create_info_struct(png_ptr);
+    if (info_ptr == NULL) {
+        fclose(fp);
+        png_destroy_write_struct(&png_ptr, NULL);
+        fprintf(stderr, "Error: could not create png info struct");
+        return ;
+    }
+
+    if (setjmp(png_jmpbuf(png_ptr))) {
+        fclose(fp);
+        png_destroy_write_struct(&png_ptr, &info_ptr);
+        fprintf(stderr, "Error: could not set png jmpbuf");
+        return ;
+    }
+
+    png_init_io(png_ptr, fp);
+
+    png_set_IHDR(png_ptr, info_ptr, width, height, 8, PNG_COLOR_TYPE_RGB, PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_BASE, PNG_FILTER_TYPE_BASE);
+
+    png_write_info(png_ptr, info_ptr);
+
+    png_bytep row = (png_bytep) malloc(3 * width * sizeof(png_byte));
+
+    for (size_t i = 0; i < height; i++) {
+        for (size_t j = 0; j < width; j++) {
+            row[j * 3 + 0] = (pixels[i * width + j] >> 16) & 0xFF;
+            row[j * 3 + 1] = (pixels[i * width + j] >> 8) & 0xFF;
+            row[j * 3 + 2] = pixels[i * width + j] & 0xFF;
+        }
+        png_write_row(png_ptr, row);
+    }
+
+    png_write_end(png_ptr, NULL);
+
+    free(row);
+    fclose(fp);
+    png_destroy_write_struct(&png_ptr, &info_ptr);
+}
+
+void pom_fill(uint32_t* pixels, size_t width, size_t height, uint32_t color){
     for (size_t i = 0; i < width * height; i++) {
         pixels[i] = color;
     }
 }
 
-void Pom::draw_circle(uint32_t* pixels, size_t width, size_t height, int cx, int cy, int radius, uint32_t color){
+void pom_draw_circle(uint32_t* pixels, size_t width, size_t height, int cx, int cy, int radius, uint32_t color){
     int x0 = cx - radius;
     int x1 = cx + radius;
     int y0 = cy - radius;
@@ -107,7 +164,7 @@ void Pom::draw_circle(uint32_t* pixels, size_t width, size_t height, int cx, int
 }
 
 // Bresenham's line algorithm : https://en.wikipedia.org/wiki/Bresenham%27s_line_algorithm
-void Pom::draw_line(uint32_t* pixels, size_t width, size_t height, int x0, int y0, int x1, int y1, uint32_t color){
+void pom_draw_line(uint32_t* pixels, size_t width, size_t height, int x0, int y0, int x1, int y1, uint32_t color){
     int dx = abs(x1 - x0);
     int sx = x0 < x1 ? 1 : -1;
     int dy = -abs(y1 - y0);
@@ -116,7 +173,7 @@ void Pom::draw_line(uint32_t* pixels, size_t width, size_t height, int x0, int y
     int e2;
 
     while (true) {
-        if(0 < x0 && x0 < (int)width && 0 < y0 && y0 < (int)height){
+        if(0 <= x0 && x0 < (int)width && 0 <= y0 && y0 < (int)height){
             pixels[x0 + y0 * width] = color;
         }
 
@@ -136,22 +193,22 @@ void Pom::draw_line(uint32_t* pixels, size_t width, size_t height, int x0, int y
     }
 }
 
-void Pom::draw_rect(uint32_t* pixels, size_t width, size_t height, int x0, int y0, int x1, int y1, uint32_t color){
-    draw_line(pixels, width, height, x0, y0, x1, y0, color);
-    draw_line(pixels, width, height, x1, y0, x1, y1, color);
-    draw_line(pixels, width, height, x1, y1, x0, y1, color);
-    draw_line(pixels, width, height, x0, y1, x0, y0, color);
+void pom_draw_rect(uint32_t* pixels, size_t width, size_t height, int x0, int y0, int x1, int y1, uint32_t color){
+    pom_draw_line(pixels, width, height, x0, y0, x1, y0, color);
+    pom_draw_line(pixels, width, height, x1, y0, x1, y1, color);
+    pom_draw_line(pixels, width, height, x1, y1, x0, y1, color);
+    pom_draw_line(pixels, width, height, x0, y1, x0, y0, color);
 }
 
-void Pom::draw_rect(uint32_t* pixels, size_t width, size_t height, int x0, int y0, int x1, int y1, uint32_t color, bool fill){
+void pom_draw_rect(uint32_t* pixels, size_t width, size_t height, int x0, int y0, int x1, int y1, uint32_t color, bool fill){
 
     if(!fill){
-        draw_rect(pixels, width, height, x0, y0, x1, y1, color);
+        pom_draw_rect(pixels, width, height, x0, y0, x1, y1, color);
         return;
     }
 
-    if(x0 > x1) swap(x0, x1);
-    if(y0 > y1) swap(y0, y1);
+    if(x0 > x1) pom_swap(x0, x1);
+    if(y0 > y1) pom_swap(y0, y1);
 
     for (int y = y0; y < y1; y++) {
         if(0 < y && y < (int)height){
@@ -164,19 +221,19 @@ void Pom::draw_rect(uint32_t* pixels, size_t width, size_t height, int x0, int y
     }
 }
 
-void Pom::fill_rect(uint32_t* pixels, size_t width, size_t height, int x0, int y0, int x1, int y1, uint32_t color){
-    draw_rect(pixels, width, height, x0, y0, x1, y1, color, true);
+void pom_fill_rect(uint32_t* pixels, size_t width, size_t height, int x0, int y0, int x1, int y1, uint32_t color){
+    pom_draw_rect(pixels, width, height, x0, y0, x1, y1, color, true);
 }
 
-void Pom::draw_triangle(uint32_t* pixels, size_t width, size_t height, int x0, int y0, int x1, int y1, int x2, int y2, uint32_t color){
-    draw_line(pixels, width, height, x0, y0, x1, y1, color);
-    draw_line(pixels, width, height, x1, y1, x2, y2, color);
-    draw_line(pixels, width, height, x2, y2, x0, y0, color);
+void pom_draw_triangle(uint32_t* pixels, size_t width, size_t height, int x0, int y0, int x1, int y1, int x2, int y2, uint32_t color){
+    pom_draw_line(pixels, width, height, x0, y0, x1, y1, color);
+    pom_draw_line(pixels, width, height, x1, y1, x2, y2, color);
+    pom_draw_line(pixels, width, height, x2, y2, x0, y0, color);
 }
 
-void Pom::draw_triangle(uint32_t *pixels, size_t width, size_t height, int x0, int y0, int x1, int y1, int x2, int y2, uint32_t color, bool fill){
+void pom_draw_triangle(uint32_t *pixels, size_t width, size_t height, int x0, int y0, int x1, int y1, int x2, int y2, uint32_t color, bool fill){
     if(!fill){
-        draw_triangle(pixels, width, height, x0, y0, x1, y1, x2, y2, color);
+        pom_draw_triangle(pixels, width, height, x0, y0, x1, y1, x2, y2, color);
     }else{
         int minx = std::min(x0, std::min(x1, x2));
         int maxx = std::max(x0, std::max(x1, x2));
@@ -187,7 +244,7 @@ void Pom::draw_triangle(uint32_t *pixels, size_t width, size_t height, int x0, i
             if(0 <= y && y < (int)height){
                 for (int x = minx; x <= maxx; x++) {
                     if(0 <= x && x < (int)width){
-                        if(is_in_triangle(x, y, x0, y0, x1, y1, x2, y2)){
+                        if(pom_is_in_triangle(x, y, x0, y0, x1, y1, x2, y2)){
                             pixels[x + y * width] = color;
                         }
                     }
@@ -199,7 +256,7 @@ void Pom::draw_triangle(uint32_t *pixels, size_t width, size_t height, int x0, i
 
 // Barycenter : https://en.wikipedia.org/wiki/Barycenter
 // French version (more maths) : https://fr.wikipedia.org/wiki/Barycentre
-void Pom::draw_triangle(uint32_t *pixels, size_t width, size_t height, int x0, int y0, size_t size, uint32_t color){
+void pom_draw_triangle(uint32_t *pixels, size_t width, size_t height, int x0, int y0, size_t size, uint32_t color){
     int x1 = x0;
     int y1 = y0 - 2 * size / 3;
 
@@ -209,14 +266,14 @@ void Pom::draw_triangle(uint32_t *pixels, size_t width, size_t height, int x0, i
     int x3 = x0 - size / 2;
     int y3 = y2;
 
-    draw_triangle(pixels, width, height, x1, y1, x2, y2, x3, y3, color);
+    pom_draw_triangle(pixels, width, height, x1, y1, x2, y2, x3, y3, color);
 }
 
 // Use the midpoint circle algorithm : https://en.wikipedia.org/wiki/Midpoint_circle_algorithm
-void Pom::draw_triangle(uint32_t *pixels, size_t width, size_t height, int x0, int y0, size_t size, uint32_t color, bool fill){
+void pom_draw_triangle(uint32_t *pixels, size_t width, size_t height, int x0, int y0, size_t size, uint32_t color, bool fill){
 
     if(!fill){
-        draw_triangle(pixels, width, height, x0, y0, size, color);
+        pom_draw_triangle(pixels, width, height, x0, y0, size, color);
         return;
     }
 
@@ -250,7 +307,7 @@ void Pom::draw_triangle(uint32_t *pixels, size_t width, size_t height, int x0, i
         if(0 < y && y < (int)height){
             for (int x = min_x; x < max_x; x++) {
                 if(0 < x && x < (int)width){
-                    if(is_in_triangle(x, y, x1, y1, x2, y2, x3, y3)){
+                    if(pom_is_in_triangle(x, y, x1, y1, x2, y2, x3, y3)){
                         pixels[x + y * width] = color;
                     }
                 }
@@ -259,7 +316,7 @@ void Pom::draw_triangle(uint32_t *pixels, size_t width, size_t height, int x0, i
     }
 }
 
-void Pom::draw_rotated_triangle(uint32_t *pixels, size_t width, size_t height, int x0, int y0, size_t size, float angle, uint32_t color, bool fill){
+void pom_draw_rotated_triangle(uint32_t *pixels, size_t width, size_t height, int x0, int y0, size_t size, float angle, uint32_t color, bool fill){
     // Convert angle to radians
     angle = - angle * M_PI / 180.0;
     
@@ -273,26 +330,26 @@ void Pom::draw_rotated_triangle(uint32_t *pixels, size_t width, size_t height, i
     int y3 = y2;
 
     // Rotate the 3 points
-    rotate_point(x1, y1, x0, y0, angle);
-    rotate_point(x2, y2, x0, y0, angle);
-    rotate_point(x3, y3, x0, y0, angle);
+    pom_rotate_point(x1, y1, x0, y0, angle);
+    pom_rotate_point(x2, y2, x0, y0, angle);
+    pom_rotate_point(x3, y3, x0, y0, angle);
 
-    draw_triangle(pixels, width, height, x1, y1, x2, y2, x3, y3, color, fill);
+    pom_draw_triangle(pixels, width, height, x1, y1, x2, y2, x3, y3, color, fill);
 }
 
-void Pom::draw_rotated_triangle(uint32_t *pixels, size_t width, size_t height, int x0, int y0, size_t size, float angle, uint32_t color){
-    draw_rotated_triangle(pixels, width, height, x0, y0, size, angle, color, false);    
+void pom_draw_rotated_triangle(uint32_t *pixels, size_t width, size_t height, int x0, int y0, size_t size, float angle, uint32_t color){
+    pom_draw_rotated_triangle(pixels, width, height, x0, y0, size, angle, color, false);    
 }
 
 // Ellipse wikipedia : https://en.wikipedia.org/wiki/Ellipse
 // french version : https://fr.wikipedia.org/wiki/Ellipse_(math%C3%A9matiques)
-void Pom::draw_ellipse(uint32_t *pixels, size_t width, size_t height, int cx, int cy, int rx, int ry, uint32_t color){
+void pom_draw_ellipse(uint32_t *pixels, size_t width, size_t height, int cx, int cy, int rx, int ry, uint32_t color){
     for(int y = -ry; y <= ry; y++){
         for(int x = -rx; x <= rx; x++){
             int px = cx + x;
             int py = cy + y;
             if(0 <= px && px < (int)width && 0 <= py && py < (int)height){
-                if(is_in_ellipse(x, y, 0, 0, rx, ry, 0)){
+                if(pom_is_in_ellipse(x, y, 0, 0, rx, ry, 0)){
                     pixels[px + py * width] = color;
                 }
             }
@@ -300,7 +357,7 @@ void Pom::draw_ellipse(uint32_t *pixels, size_t width, size_t height, int cx, in
     }
 }
 
-void Pom::draw_rotated_ellipse(uint32_t *pixels, size_t width, size_t height, int cx, int cy, int rx, int ry, float angle, uint32_t color){
+void pom_draw_rotated_ellipse(uint32_t *pixels, size_t width, size_t height, int cx, int cy, int rx, int ry, float angle, uint32_t color){
     // Convert the angle to radians
     angle = - angle * M_PI / 180.0;
     
@@ -314,7 +371,7 @@ void Pom::draw_rotated_ellipse(uint32_t *pixels, size_t width, size_t height, in
         if(0 <= y && y < (int)height){
             for(int x = min_x; x <= max_x; x++){
                 if(0 <= x && x < (int)width){
-                    if(is_in_ellipse(x, y, cx, cy, rx, ry, angle)){
+                    if(pom_is_in_ellipse(x, y, cx, cy, rx, ry, angle)){
                         pixels[x + y * width] = color;
                     }
                 }
@@ -323,20 +380,67 @@ void Pom::draw_rotated_ellipse(uint32_t *pixels, size_t width, size_t height, in
     }
 }
 
-void Pom::draw_x_axis(uint32_t *pixels, size_t width, size_t height, int ticks_count, int min, int max, int my, uint32_t color){
-    int y = std::min(height - my, height - 3);
+void pom_draw_grid(uint32_t *pixels, size_t width, size_t height, int nb_rows, int nb_cols, uint32_t color){
+    for(int i = 1; i <= nb_rows; i++){
+        pom_draw_line(pixels, width, height, 0, i * height / (nb_rows + 1), width, i * height / (nb_rows + 1), color);
+    }
 
-    for(int x = min; x < max; x++){
-        pixels[x + y * width] = color;
-
-        if(x % (width / ticks_count) == 0){
-            for(int i = 0; i < 3; i++){
-                pixels[x + (y - i) * width] = color;
-            }
-        }
+    for(int i = 1; i <= nb_cols; i++){
+        pom_draw_line(pixels, width, height, i * width / (nb_cols + 1 ), 0, i * width / (nb_cols + 1 ), height, color);
     }
 }
 
-void Pom::draw_x_axis(uint32_t *pixels, size_t width, size_t height, int ticks_count, uint32_t color){
-    draw_x_axis(pixels, width, height, ticks_count, 0, width, 3, color);
+void pom_draw_x_axis(uint32_t *pixels, size_t width, size_t height, int ticks_count, size_t tick_height, int min, int max, int my, uint32_t color){
+    int y = std::min(height - my, height - tick_height);
+
+    pom_draw_line(pixels, width, height, min, y, max, y, color);
+
+    int delta = max - min;
+
+    for(int i = 1; i <= ticks_count; i++){
+        pom_draw_line(pixels, width, height, min + i * delta / (ticks_count + 1), y, min + i * delta / (ticks_count + 1), y - tick_height, color);
+    }
+}
+
+void pom_draw_x_axis(uint32_t *pixels, size_t width, size_t height, int ticks_count, int min, int max, int my, uint32_t color){
+    pom_draw_x_axis(pixels, width, height, ticks_count, TICK_SIZE, min, max, my, color);
+}
+
+void pom_draw_x_axis(uint32_t *pixels, size_t width, size_t height, int ticks_count, uint32_t color){
+    pom_draw_x_axis(pixels, width, height, ticks_count, TICK_SIZE, 0, width, AXIS_MARGIN, color);
+}
+
+void pom_draw_y_axis(uint32_t *pixels, size_t width, size_t height, int ticks_count, size_t tick_width, int min, int max, int mx, uint32_t color){
+    int x = mx;
+
+    pom_draw_line(pixels, width, height, x, min, x, max, color);
+
+    int delta = max - min;
+
+    for(int i = 1; i <= ticks_count; i++){
+        pom_draw_line(pixels, width, height, x, min + i * delta / (ticks_count + 1), x + tick_width, min + i * delta / (ticks_count + 1), color);
+    }
+}
+
+void pom_draw_y_axis(uint32_t *pixels, size_t width, size_t height, int ticks_count, int min, int max, int mx, uint32_t color){
+    pom_draw_y_axis(pixels, width, height, ticks_count, TICK_SIZE, min, max, mx, color);
+}
+
+void pom_draw_y_axis(uint32_t *pixels, size_t width, size_t height, int ticks_count, uint32_t color){
+    pom_draw_y_axis(pixels, width, height, ticks_count, TICK_SIZE, 0, height, AXIS_MARGIN, color);
+}
+
+void pom_draw_axes(uint32_t *pixels, size_t width, size_t height, int ticks_count_x, int ticks_count_y, uint32_t color){
+    pom_draw_x_axis(pixels, width, height, ticks_count_x, color);
+    pom_draw_y_axis(pixels, width, height, ticks_count_y, color);
+}
+
+void pom_draw_axes(uint32_t *pixels, size_t width, size_t height, int ticks_count, uint32_t color){
+    pom_draw_axes(pixels, width, height, ticks_count, ticks_count, color);
+}
+
+void pom_draw_polygon(uint32_t *pixels, size_t width, size_t height, int *pointsX, int *pointsY, int points_count, uint32_t color){
+    for(int i = 0; i < points_count; i++){
+        pom_draw_line(pixels, width, height, pointsX[i], pointsY[i], pointsX[(i + 1) % points_count], pointsY[(i + 1) % points_count], color);
+    }
 }

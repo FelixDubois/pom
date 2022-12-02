@@ -2,7 +2,7 @@
 
 # Build the project
 # Add cmath librairie
-gcc -Wall -Wextra -o ./build/output ./src/main.cpp -lm 
+gcc -Wall -Wextra -o ./build/pom ./src/main.cpp -lm -lpng
 
 # Run the project
-./build/output
+./build/pom
