@@ -2,11 +2,9 @@
 
 ## A simple c++ image rendering library for a **quick** render **easy to use** 🚀
 
-
-📖 You can read the [wiki](https://github.com/FelixDubois/pom/wiki)
+You can read the [wiki 📖](https://github.com/FelixDubois/pom/wiki)
 
 With **pom** you can :
-
 
 ### Draw lines 📏
 
